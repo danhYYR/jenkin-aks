@@ -1,0 +1,17 @@
+./vdemoserver/
+*__pycache__/
+*.vscode
+# Config enviroment
+venv/
+# Terraform
+infra/tf/*.hcl
+infra/tf/.terraform
+infra/tf/backend.conf
+## Terraform script to run
+infra/tf/cmd
+#Setup ssh key
+.ssh
+# Config Ansible
+infra/ansible/config
+# Raw database
+db/
