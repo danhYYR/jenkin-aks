@@ -9,6 +9,12 @@ sudo apt-get install -y kubectl
 # Install az cli
 sudo apt update
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+# Install Helm
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
 # Export ServicePrincipal with the enviroment
 # Config port connect ssh to 2024
 sudo sed -i 's/#Port 22/Port 2024/' /etc/ssh/sshd_config
