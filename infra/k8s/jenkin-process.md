@@ -9,6 +9,8 @@ Initially, the Jenkin will be implemented following the guideline from the Jenki
 - Create a deployment YAML and deploy it.
 
 - Create a service YAML and deploy it.
+## Jenkins Helm
+This deploying process can be also implemented by Helm Chart from [Jenkins Chart](https://github.com/jenkinsci/helm-charts/tree/main/charts/jenkins). The deploy process will be running automatically based on the your values file template. However, manually created the storage class for Statefulsets is required before ultilized the Helm
 
 ## Jenkins Guidelines
 The project's cycle can be managed automatic by the CI/CD. This guideline for showing a step by step to integrate the Jenkins to the Kubernetes cloud service.
