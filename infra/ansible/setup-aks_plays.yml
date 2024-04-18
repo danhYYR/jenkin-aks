@@ -54,7 +54,7 @@
   tasks:
     - name: Copy AKS Manifest and Deployment Script
       ansible.builtin.copy:
-        src: "../aks-define"
+        src: "../k8s"
         dest: "~/demo"
       register: copy_result
 

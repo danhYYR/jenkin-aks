@@ -4,6 +4,7 @@ metadata:
   name: local-storage
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
 ---
 apiVersion: v1
 kind: PersistentVolume
