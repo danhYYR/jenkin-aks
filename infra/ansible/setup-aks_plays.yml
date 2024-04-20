@@ -60,6 +60,12 @@
 
     - name: Copy Deployment Script
       ansible.builtin.copy:
-        src: "../scripts/deploypod.sh"
+        src: "../scripts/deploy_helm.sh"
         dest: "~/demo/scripts/"
       register: script_copy_result
+
+    - name: Copy Pipeline Script
+      ansible.builtin.copy:
+        src: "../../pipeline"
+        dest: "~/demo"
+      register: script_copy_pipeline

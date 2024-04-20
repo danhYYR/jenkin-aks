@@ -1,0 +1,9 @@
+- name: Prepare the AKS Manifest
+  hosts: jumphost  # Replace 'jumphost' with the actual hostname or group for your jump host
+  gather_facts: false
+  tasks:
+    - name: Deploy AKS
+      ansible.builtin.shell:
+        cmd: 'cd ~/demo/k8s/jenkin && source ~/demo/scripts/deploy_helm.sh'
+        executable: /bin/bash
+
