@@ -1,0 +1,39 @@
+trigger:
+- none
+stages:
+  ## Include the template get the key-vault
+  - template: retrieve_variables-pipeline.yml  # Use the same template file
+  ## Run destroy terraform
+  - stage: DestroyTerraform
+    variables:
+      AKS_ID: $[ stageDependencies.RetrieveKeyVault.Retrieve_Secret.outputs['AKS.AKS_ID'] ]
+      AKS_SECRET: $[ stageDependencies.RetrieveKeyVault.Retrieve_Secret.outputs['AKS.AKS_SECRET'] ]
+    jobs:
+      ## Build the resource      
+      - job: TerrafromDestroyResource
+        steps:
+        - task: TerraformTaskV4@4
+          displayName: Terraform Init
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            backendServiceArm: 'demo-aks'
+            backendAzureRmResourceGroupName: 'demogrp'
+            backendAzureRmStorageAccountName: 'tfstate22801'
+            backendAzureRmContainerName: 'tfstate'
+            backendAzureRmKey: 'tf-pipeline'
+            environmentServiceNameAzureRM: 'demo-aks' 
+        - task: DownloadSecureFile@1
+          name: sshkey
+          inputs:
+            secureFile: 'id_demovm.pub.pub'    
+        ## Terraform plan
+        - task: TerraformTaskV4@4
+          displayName: Terraform Destroy
+          inputs:
+            provider: 'azurerm'
+            environmentServiceNameAzureRM: 'demo-aks'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            command: 'destroy'
+            commandOptions: '-var sp-id=$(AKS_ID) -var sp-client_secret=$(AKS_SECRET) -var ssh_public_key=$(sshkey.secureFilePath) -var-file $(System.DefaultWorkingDirectory)/terraform/tfvars/dev.tfvars --auto-approve'

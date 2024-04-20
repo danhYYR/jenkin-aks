@@ -1,0 +1,114 @@
+trigger:
+  branches:
+    include: 
+      - azpipeline
+      - tf
+  paths:
+    include:
+      - terraform
+
+name: Build the resource
+pool:
+  vmImage: ubuntu-latest
+## Set up variable from library
+variables: 
+  - group: demogroup
+  ## Add this under variables section in the pipeline
+  - name: azSubscription
+    value: $[variables.AZSUBSCRIPTION]
+  - name : az_group
+    value: $[variables.GRPNAME]
+  - name: az_location
+    value: $[variables.REGION]
+
+## Validate the terraform
+stages:
+  ## Add the template to get the key vault
+  - template: retrieve_variables-pipeline.yml
+  ## Build the resource stage
+  - stage: BuildTheInfrasctruture
+    variables:
+      AKS_ID: $[ stageDependencies.RetrieveKeyVault.Retrieve_Secret.outputs['AKS.AKS_ID'] ]
+      AKS_SECRET: $[ stageDependencies.RetrieveKeyVault.Retrieve_Secret.outputs['AKS.AKS_SECRET'] ]
+
+    jobs:
+      ## Validate the terraform and build the terraform.hcl
+      - job: TerraformValidateJob
+        continueOnError: false
+        steps:
+        - script: |
+            echo 'Checking contents of the output variable'
+            echo AKS_ID: $(AKS_ID)
+            echo AKS_SECRET: $(AKS_SECRET)
+          displayName: Checking the key-vault variable
+        - task: TerraformInstaller@0
+          displayName: Terraform Install
+          inputs:
+            terraformVersion: 'latest'
+        - task: TerraformTaskV4@4
+          displayName: Terraform Init
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+            backendServiceArm: 'demo-aks'
+            backendAzureRmResourceGroupName: 'demogrp'
+            backendAzureRmStorageAccountName: 'tfstate22801'
+            backendAzureRmContainerName: 'tfstate'
+            backendAzureRmKey: 'tf-pipeline'
+            environmentServiceNameAzureRM: 'demo-aks'
+        - task: TerraformTaskV4@4
+          displayName: Terrafrom Validate
+          inputs:
+            provider: 'azurerm'
+            command: 'validate'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+      ## Publish Artifact which have the terraform.hcl
+        - task: PublishPipelineArtifact@1
+          displayName: Publish the artifact for terraform manifest
+          inputs:
+            targetPath: '$(System.DefaultWorkingDirectory)/terraform'
+            artifact: 'terraform-manifest'
+      ## Terraform apply  
+      - job: TerraformBuildResource
+        dependsOn: TerraformValidateJob
+        steps:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            buildType: 'current'
+            artifactName: 'terraform-manifest'
+            targetPath: '$(Pipeline.Workspace)/terraform-manifest'
+        - script: |
+            echo 'Assign the permission for the terraform configuration'
+            chmod -R +x $(Pipeline.Workspace)/terraform-manifest/.terraform
+            echo 'Checking contents of the working directory...'
+            ls -Ral $(Pipeline.Workspace)/terraform-manifest
+          displayName: Checking the working directory        
+        # Assign the Read Permission
+        ## Dowload SSHkey file
+        - task: DownloadSecureFile@1
+          name: sshkey
+          inputs:
+            secureFile: 'id_demovm.pub.pub'
+        - script: |
+            echo 'Verify the ssh key'
+            cat $(sshkey.secureFilePath)
+        ## Terraform plan
+        - task: TerraformTaskV4@4
+          displayName: Terraform Plan
+          inputs:
+            provider: 'azurerm'
+            workingDirectory: '$(Pipeline.Workspace)/terraform-manifest'
+            environmentServiceNameAzureRM: 'demo-aks'
+            command: 'plan'
+            commandOptions: '-var sp-id=$(AKS_ID) -var sp-client_secret=$(AKS_SECRET) -var ssh_public_key=$(sshkey.secureFilePath) -var-file $(Pipeline.Workspace)/terraform-manifest/tfvars/dev.tfvars'
+        ## Terraform Apply
+        - task: TerraformTaskV4@4
+          displayName: Terraform Apply
+          inputs:
+            provider: 'azurerm'
+            workingDirectory: '$(Pipeline.Workspace)/terraform-manifest'
+            environmentServiceNameAzureRM: 'demo-aks'
+            backendServiceArm: 'demo-aks'
+            command: 'apply'
+            commandOptions: '-var sp-id=$(AKS_ID) -var sp-client_secret=$(AKS_SECRET) -var ssh_public_key=$(sshkey.secureFilePath) -var-file $(Pipeline.Workspace)/terraform-manifest/tfvars/dev.tfvars --auto-approve'

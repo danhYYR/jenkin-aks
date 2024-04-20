@@ -1,0 +1,17 @@
+stages:
+  - stage: RetrieveKeyVault
+    jobs:
+    - job: Retrieve_Secret
+      displayName: Retrieve the secret of Service Principal from Key Vault
+      steps:
+      - task: AzureKeyVault@2
+        inputs:
+          azureSubscription: 'demo-aks'
+          KeyVaultName: 'pipeline-sp'
+          SecretsFilter: '*'
+          RunAsPreJob: true
+      - script: |
+          echo "##vso[task.setvariable variable=AKS_ID;isOutput=true]$(aks-sp-id)"
+          echo "##vso[task.setvariable variable=AKS_SECRET;isOutput=true]$(aks-client-secret)"
+        displayName: 'Publish Secrets as Variables'
+        name: AKS
