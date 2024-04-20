@@ -5,23 +5,24 @@
   tasks:
     - name: Get the Enviroment variables
       ansible.builtin.set_fact:
-        vault_uri: "{{lookup('ansible.builtin.env','vault_uri')}}"
-        vault_sp_id: "{{lookup('ansible.builtin.env','vault_client_id')}}"
-        vault_sp_secret: "{{lookup('ansible.builtin.env','vault_client_secret')}}"
-
-    - name: Get Service Principal from Key Vault
-      azure.azcollection.azure_rm_keyvaultsecret_info:
-        vault_uri: "{{vault_uri}}"
-        name: "{{item}}"
-      loop:
-        - "{{vault_sp_id}}"
-        - "{{vault_sp_secret}}"
-      register: keyvaultsecret_info
+        # vault_uri: "{{lookup('ansible.builtin.env','vault_uri')}}"
+        # vault_sp_id: "{{lookup('ansible.builtin.env','vault_client_id')}}"
+        # vault_sp_secret: "{{lookup('ansible.builtin.env','vault_client_secret')}}"
+        sp_id: "{{lookup('ansible.builtin.env','SP_ID')}}"
+        sp_secret: "{{lookup('ansible.builtin.env','SP_SECRET')}}"
+    # - name: Get Service Principal from Key Vault
+    #   azure.azcollection.azure_rm_keyvaultsecret_info:
+    #     vault_uri: "{{vault_uri}}"
+    #     name: "{{item}}"
+    #   loop:
+    #     - "{{vault_sp_id}}"
+    #     - "{{vault_sp_secret}}"
+    #   register: keyvaultsecret_info
 
     - name: Assign variables for the Client 
       ansible.builtin.set_fact:
-        client_id: "{{keyvaultsecret_info.results[0].secrets[0].secret}}"
-        client_secret: "{{keyvaultsecret_info.results[1].secrets[0].secret}}"
+        client_id: "{{sp_id}}"
+        client_secret: "{{sp_secret}}"
     - name: Validate the Service Principal
       ansible.builtin.debug:
         msg: "ID: {{client_id}} and pass: {{client_secret}}"
