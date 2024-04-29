@@ -1,41 +1,90 @@
-# Overview
+# Technical Overviews
+This project is building the dynamic modern application on the Azure Provisioner. The proposed feature of this one is combined:
+- Infrastructure as code: Manage infrastructure on the cloud provisioner by Terraform which the state is also stored on the Storage Account.
+- Kubernetes Service on Azure: Running the core application and carry on the application flow
+- Jenkins Server: Build the CI/CD process to deploy the application
+- Helm Chart: Manage and deploy the kubenetes manifests
+- Ansible: Control the configuration task on the Cloud resources.
+# Summary project
 This project simulates the typical Kubernetes to create the automatic CI/CD for deploying the applications on the AKS. For this reason, the proposed framework will include:
-- Private AKS
-- Jenkin for running the CI/CD process
-- Application based on the clean architecture
-# Infrastructures
-The proposed infrastructure will be following the typical of private AKS:
-- Vnet with the subnets for assigning the Ipv4 for the AKS's components
-- The AKS with the private API server
-- Control VM list for managing the deploying process such as Jumphost, Admin VM,...
+- Private AKS: Limit the communications with the API server from the specific VM's address
+- Jenkins Servers: Deploy the Jenkins Server on AKS by Helm with the Statefull sets
+- Core Application : The core application is followed the clean-architecture to interact to the timescale database
+
 ![Private AKS Infrastructure](./images/Jenkins_Infra.svg)
-Not only ultilize the IaC for managing the infrastructure but the project also integrate the Configuration tools for managing the multiple resources on the cloud provider such as the Ansible. From the terraform, the Ansible inventory will be created simultaneous the dynamic and the static options. By this way, you can easilly copy and manage file to the ControlVM list for deployment tasks.
-# Workflow
-In this proposed approach, the infrastructure will be created by IaC and manage the deploy process manually. Since the Private AKS only access the API server from the device in the same Vnet. So we need to connect to the Jumphost for deploying task. However, the Ansible is the solution for this task from your device.
 
-Terraform to create the Infrastructure --> Output the Inventory for Ansible tasks --> Deploying manually by the Ansible-playbook. The detail flow is included:
+The workflow is kept to this one:
 
-- ** Developer **: Commit code, prepare docker file and push feature to the repository -> Jenkins server get the trigger -> CI to build the AKS resources -> CD to build the application
+Build the Infrastructure with IaC tools --> Setup the kubernetes administrators --> Deploy the Jenkins Server --> Define the CI/CD pipeline --> Deploy the Applications
+# Setup details
+## Build the Infrastructure
+Terraform is the main IaC tools to build the resources on the Azure from the folder: ``` ./infra/tf```. 
 
-- ** Infrastructure management **: Prepare the terraform resources -> Trigger to the repository -> CI build the cloud infrastructures -> Deploy the Jenkins server on AKS 
-## Infrastructure as code (IaC) 
-This repo is design the terraform command. Please replace your setup of the infra with the tfvars file on ``` infra/tf/tfvars ```. In this setup, you need to implement your configuration of the backend which is stored the tfstate of the infrastructure. You can replace your configuration with your backend.conf file and run file ``` cmd/tf-config.sh```.
+**Prerequisites** :
+- The Self-Host machine installed and configure the Terraform
+- Azure account/credentials
+- Resources Group which is containerd the Storage Account to store the ```.tfstates``` file.
 
-In order to run this IaC, you are required the tfvars file, the Enviroment Variable with define the Service Principal with 
-```  
+You can modify the values from the ``` .tfvars ``` file in case you want to custom the resources informations. However, this variables file is not icluded the credential for the AKS such as: Supscriptions, Tenant ID, Azure account ... Since this project will be used the Subscriptions to setup the credential for AKS, you have to define these with the Enviroment variables: 
+```
 TENANT_ID : Tennant ID
 SP_ID : Service Principal Object ID 
 SP_SECRET: Service Principal client secret
 ```
-This enviroment variables is asked for the config the kubernetes admin in the following step.
 
-## Configuration
-The IaC module is also define the ansible playbook for setup the necessary file on the JumpHost VM. The proposed approaches is provided the dynamic inventory template and the local inventory file. 
+The commands is store to the script on the ``` ./infra/tf/cmd``` to run more quickly and reducing the mistake commands. The order will be included:
 
-Moreover, the configuration team can be reused their playbook with the infrastructure output variables. The inventory variable yaml file will be outputed on the ``` infra/tf/module/self_host/variable_file.yml```. From this template, we can ultilize the playbook from ``` infra/ansible/dynamic-host_play.yaml``` with this command: ``` ansible-playbook dynamic-host_plays.yml --extra-var  {your-template-variable-file}" ```.
-# Deploy AKS
-## Jenkins Helm
-The Jenkins will be deployed on the AKS with the statfull sets by Jenkins Helm Chart. This defination is located from ``` ./infra/k8s/jenkins```. In case you want to manually deploy, this directory is also included the guideline and the brief explaination. In other hand, you will modify the ``` ./k8s/jenkin/value-jenkin_helm.yaml```. The order deployment will be:
+- tf-config: Setup the Storage resources to store the ```.tfstates``` file
+- tf-run: Plan and run with the tfvars and neccessary variables
+- tf-destroy: To clean up the projects
+
+In case you prefer to the imperative approaches, you can followed this commands list:
+- 
+
+From this step you will have:
+- Azure resources for Private AKS
+- ```.tfstates``` to store the resources informations
+- Ansible's Inventory  to manage the configurations
+
+## Config the Kubernetes Administrator
+The Private AKS is required the limitation VM to communicate with the Control Node throught out the API Server. For this reason, we need to configure the JumpHost VM as the Administrators node to configure and manage the Kubernetes resources. This setups will be followed:
+- Install the kubectl, AZ CLI
+- Login with the Azure Credentials
+- Get the Kubernetes 
+privileges
+
+The setup task have been implement from Terraform with the Azure VM Extension resources. However, the configurement jobs will be executed with the Ansible playbooks. The inventory for this tools is also provided from the Terraform steps and saved on folder: ``` ./infra/ansible/inventory```. This inventory directory is included the dynamic inventory which is cached the resources informations and the local one.
+
+### Configure with Ansible
+This project is proposed the Dynamic and the local suggestion to interact with the resources informations such as: resources name, ip address, variables...
+
+Run the playbooks to setup and prepare the compulsory manifest files:
+``` 
+ansible-playbook ./infra/ansible/setup-aks_plays.yml -i jenkin-aks/infra/ansible/config/inventory_tf.yml
+```
+This playbooks will execute with this order:
+- Login with the Azure Credentials
+- Get the Kubernetes Admin
+- Copy the Manifest definations to the JumpHost VM
+
+The output for this steps will combine:
+- JumpHost VM with the Kubernetes admin permission from the ```.kubeconfig```
+- JumpHostVM with the necessary manifest files
+### Recreate the inventory file (Optional)
+Configuration team can be reused their playbook with the infrastructure output variables. The inventory variable yaml file will be outputed on the ``` infra/tf/module/self_host/variable_file.yml```. From this template, we can ultilize the playbook from ``` infra/ansible/dynamic-host_play.yaml``` with this command: ``` ansible-playbook dynamic-host_plays.yml --extra-var  {your-template-variable-file}" ```.
+
+## Deploy the AKS
+AKS will be ultilized for host and orchestrate the applications. Define and deploy the application resources you can run with Helm or traditional way with the manifest yaml files. Not only run the core app, but you can also automatically the deployment tasks with the Jenkins servers.
+### Jenkins Servers
+The Jenkins server will be integrated to the AKS with the Helm Chart as the Statefulsets type. You can refer to the [Jenkins Kubernetes Guidelines](https://www.jenkins.io/doc/book/installing/kubernetes/) to see more details for this jobs.
+
+To deploy the Jenkins chart to the Kubernetes, you have to
+- Install the Helm
+- Search and add the Jenkisn Chart repository
+- Deploy manually the Storage Class for PVC
+- Prepare the Valuables file
+
+Because of deploying the Jenkins in AKS you need to assign the public/domain to access this server, you need to use the Load Balancer for the service AKS. The order deployments is going to follow:
 
 SSH to JumpHost -> Helm add Jenkins chart -> Create the storage class -> Deploy Jenkins Chart from values file by Helm
 
@@ -46,10 +95,13 @@ helm repo update
 kubectl create -f sc_k8s.yaml
 helm install jenkins -f values-jenkins_helm.yaml jenkinsci/jenkins
 ```
-However, this project is proposed the declarative approaches by Ansible. From the machine run terraform, it will be created the inventory file for the JumphostVM. By this way, we will run 2 ansible: ``` ./infra/ansible/setup-aks_plays.yaml``` to copy the requirements manifest files and ``` ./infra/ansible/deploy-aks_plays.yml ``` to run the commands. The local inventory is created from ``` ./infra/ansible/config/inventory_tf.yml ```
 
-** Deployment flow **: 
+However, this project is proposed the declarative approaches by Ansible. From the machine run terraform, it will be created the inventory file for the JumphostVM. 
 
-- Validate the Jumphost resource with the inventory file 
-- Copy manifest template to the Jumphost VM 
-- Run the script create from these templates
+By this way, you can run 2 ansible playbooks: ``` ./infra/ansible/setup-aks_plays.yaml``` to copy the requirements manifest files and ``` ./infra/ansible/deploy-aks_plays.yml ``` to run the commands.
+## Jenkins Servers
+Install the Plugins
+
+Prepare Agent/Slaves
+
+Config the projects
